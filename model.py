@@ -56,5 +56,9 @@ class Neuron():
             for i in range(self.dim):
                 self.weights[i] -= alpha * derivative(self.loss)(yhat,y) * derivative(self.activation)(pre) * xvals[i]
 
-   # def fit(self,  xs, ys, *, alpha= 0.03, epochs= 5):
+    def fit(self,  xs, ys, *, alpha= 0.03, epochs= 5):
+        for epoch in range(epochs):
+            self.partial_fit(xs, ys)
 
+    def tanh(self, a):
+        return np.e
