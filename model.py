@@ -17,6 +17,9 @@ def mean_squared_error(yhat, y):
 def mean_absolute_error(yhat, y):
     return yhat - y
 
+def tanh(a):
+    return np.tanh(a)
+
 
 def derivative(function, delta=0.001):
     def wrapper_derivative(x, *args):
@@ -35,6 +38,7 @@ class Neuron():
         self.loss = loss
         self.bias = bias
         self.weights = [0 for _ in range(dim)]
+        self.loss_derivs = []
 
     def __repr__(self):
         text = f'Neuron(dim={self.dim}, activation={self.activation.__name__}, loss={self.loss.__name__})'
@@ -52,13 +56,14 @@ class Neuron():
         for xvals, y in zip(xs, ys):
             pre = self.bias + sum(self.weights[i] * xvals[i] for i in range(self.dim))
             yhat = self.activation(pre)
+            self.loss_derivs.append(derivative(self.loss)(yhat,y))
             self.bias -= alpha * derivative(self.loss)(yhat,y) * derivative(self.activation)(pre)
             for i in range(self.dim):
                 self.weights[i] -= alpha * derivative(self.loss)(yhat,y) * derivative(self.activation)(pre) * xvals[i]
 
-    def fit(self,  xs, ys, *, alpha= 0.03, epochs= 5):
+    def fit(self,  xs, ys, *, alpha= 0.03, epochs = 400):
         for epoch in range(epochs):
             self.partial_fit(xs, ys)
-
-    def tanh(self, a):
-        return np.e
+            if np.average(self.loss_derivs) <= 0.03:
+                self.loss_derivs = []
+                break
