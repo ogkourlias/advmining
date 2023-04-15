@@ -1,7 +1,20 @@
-import math
+#!/usr/bin/env python3
+
+"""
+Python module which contains loss functions, activation functions, a Neuron class and a layer class.
+To be used with the corresponding assignments.
+"""
+
+# METADATA VARIABLES
+__author__ = "Orfeas Gkourlias"
+__status__ = "WIP"
+__version__ = "0.1"
+
+# IMPORTS
 import numpy as np
+import sys
 
-
+# Activation functions
 def linear(a):
     return a
 
@@ -17,6 +30,7 @@ def mean_squared_error(yhat, y):
 def mean_absolute_error(yhat, y):
     return yhat - y
 
+
 def tanh(a):
     return np.tanh(a)
 
@@ -31,8 +45,9 @@ def derivative(function, delta=0.001):
     return wrapper_derivative
 
 
+# CLASSES
 class Neuron():
-    def __init__(self, dim, activation = linear, loss = mean_squared_error, bias=0):
+    def __init__(self, dim, activation=linear, loss=mean_squared_error, bias=0):
         self.dim = dim
         self.activation = activation
         self.loss = loss
@@ -52,18 +67,29 @@ class Neuron():
             predicted.append(post)
         return predicted
 
-    def partial_fit(self, xs, ys, *, alpha = 0.03):
+    def partial_fit(self, xs, ys, *, alpha=0.03):
         for xvals, y in zip(xs, ys):
             pre = self.bias + sum(self.weights[i] * xvals[i] for i in range(self.dim))
             yhat = self.activation(pre)
-            self.loss_derivs.append(derivative(self.loss)(yhat,y))
-            self.bias -= alpha * derivative(self.loss)(yhat,y) * derivative(self.activation)(pre)
+            self.loss_derivs.append(derivative(self.loss)(yhat, y))
+            self.bias -= alpha * derivative(self.loss)(yhat, y) * derivative(self.activation)(pre)
             for i in range(self.dim):
-                self.weights[i] -= alpha * derivative(self.loss)(yhat,y) * derivative(self.activation)(pre) * xvals[i]
+                self.weights[i] -= alpha * derivative(self.loss)(yhat, y) * derivative(self.activation)(pre) * xvals[i]
 
-    def fit(self,  xs, ys, *, alpha= 0.03, epochs = 400):
+    def fit(self, xs, ys, *, alpha=0.03, epochs=400):
         for epoch in range(epochs):
             self.partial_fit(xs, ys)
             if np.average(self.loss_derivs) <= 0.03:
                 self.loss_derivs = []
                 break
+
+
+# MAIN
+def main(args):
+    """ Main function """
+    # FINISH
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main(sys.argv))
