@@ -85,7 +85,7 @@ class Neuron:
             for i in range(self.dim):
                 self.weights[i] -= alpha * derivative(self.loss)(yhat, y) * derivative(self.activation)(pre) * xvals[i]
 
-    def fit(self, xs, ys, *, alpha=0.03, epochs=400):
+    def fit(self, xs, ys, *, alpha=0.03, epochs=4000):
         for epoch in range(epochs):
             self.partial_fit(xs, ys)
             if np.average(self.loss_derivs) <= 0.03:
@@ -152,7 +152,7 @@ class InputLayer(Layer):
     """Input layer of a neural network."""
 
     def __call__(self, xs, ys=None, alpha=None):
-        return self.next(xs, ys)
+        return self.next(xs, ys, alpha)
 
     def __repr__(self):
         text = f'InputLayer(outputs={self.outputs}, name={repr(self.name)})'
@@ -177,6 +177,10 @@ class InputLayer(Layer):
     def partial_fit(self, xs, ys, *, alpha=0.03):
         self(xs, ys, alpha)
 
+    def fit(self, xs, ys, *, alpha=0.03, epochs=400):
+        for epoch in range(epochs):
+            self.partial_fit(xs, ys, alpha=alpha)
+
 class DenseLayer(Layer):
 
     def __init__(self, outputs, *, name=None, next=None):
@@ -191,22 +195,30 @@ class DenseLayer(Layer):
         """
         xs should be a list of lists of values, where each sublist has a number of values equal to self.inputs
         """
-        aa = []   # Uitvoerwaarden voor alle instances xs (xs is een (nested) lijst met instances)
+        aa = []
+        gradients = None
         for x in xs:
-            a = []   # Uitvoerwaarde voor één instance x (x is een lijst met attributen)
+            a = []
             for o in range(self.outputs):
-                # Bereken voor elk neuron o uit de lijst invoerwaarden x de uitvoerwaarde
                 pre_activation = self.bias[o] + sum(self.weights[o][i] * x[i] for i in range(self.inputs))
-                a.append(pre_activation)  # a is lijst met de output waarden van 1 instance
-            aa.append(a)  # aa is een nested lijst met de output waarden van alle instances
+                a.append(pre_activation)
+            aa.append(a)
 
-        yhats, ls, gs = self.next(aa, ys)
+        yhats, ls, gs = self.next(aa, ys, alpha)
 
-        if alpha is not None:
-            # Update weights and biases
-            print("z")
+        if alpha:
+            gradients = []
+            for x, g in zip(xs, gs):
+                gradients.append([sum(self.weights[o][i] * g[o] for o in range(self.outputs))
+                                  for i in range(self.inputs)])
+                for o in range(self.outputs):
+                    self.bias[o] -= alpha/len(xs) * g[o]
+                    self.weights[o] = [self.weights[o][i] - alpha/len(xs) * g[o] * x[i]
+                                       for i in range(self.inputs)]
 
-        return yhats, ls, gs
+        return yhats, ls, gradients
+
+
 
     def __repr__(self):
         """Return a string representation of the layer."""
@@ -231,6 +243,7 @@ class ActivationLayer(Layer):
 
     def __call__(self, xs, ys=None, alpha=None):
         hh = []   # Uitvoerwaarden voor alle pre activatie waarden berekend in de vorige laag
+        grads = None
         for x in xs:
             h = []   # Uitvoerwaarde voor één pre activatie waarde
             for o in range(self.outputs):
@@ -238,9 +251,18 @@ class ActivationLayer(Layer):
                 post_activation = self.activation(x[o])
                 h.append(post_activation)
             hh.append(h)
-        yhats, ls, gs = self.next(xs, ys)
-        return yhats, ls, gs
 
+        yhats, ls, gs = self.next(hh, ys, alpha)
+
+        if alpha is not None:
+            grads = []
+            # calculate gradients
+            for x, g in zip(xs, gs):
+                gg = [derivative(self.activation)(x[i]) * g[i] for i in range(self.inputs)]
+                grads.append(gg)
+
+
+        return yhats, ls, grads
     def __repr__(self):
         text = f'ActivationLayer(inputs={self.inputs}, outputs={self.outputs}, name={repr(self.name)})'
         if self.next is not None:
@@ -268,14 +290,14 @@ class LossLayer(Layer):
         gs = None
         if ys is not None:
             ls = []
-            gs = []
             for yhat, y in zip(yhats, ys):
                 summed_loss = sum(self.loss(yhat[i], y[i]) for i in range(self.inputs))
                 ls.append(summed_loss)
-                if alpha is not None:
-                    dgs = sum(derivative(self.loss(yhat[i], y[i])) for i in range(self.inputs))
-                    gs.append(dgs)
 
+        if alpha is not None:
+            gs = []
+            for yhat, y in zip(yhats, ys):
+                gs.append([derivative(self.loss)(yhat[i], y[i]) for i in range(self.inputs)])
         return yhats, ls, gs
     def __add__(self, next):
         raise NotImplementedError('Cannot add a layer after a loss layer')
