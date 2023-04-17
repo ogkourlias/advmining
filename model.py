@@ -151,7 +151,7 @@ class Layer:
 class InputLayer(Layer):
     """Input layer of a neural network."""
 
-    def __call__(self, xs, ys=None):
+    def __call__(self, xs, ys=None, alpha=None):
         return self.next(xs, ys)
 
     def __repr__(self):
@@ -174,6 +174,8 @@ class InputLayer(Layer):
         lmean = sum(ls) / len(ls)
         return lmean
 
+    def partial_fit(self, xs, ys, *, alpha=0.03):
+        self(xs, ys, alpha)
 
 class DenseLayer(Layer):
 
@@ -197,7 +199,14 @@ class DenseLayer(Layer):
                 pre_activation = self.bias[o] + sum(self.weights[o][i] * x[i] for i in range(self.inputs))
                 a.append(pre_activation)  # a is lijst met de output waarden van 1 instance
             aa.append(a)  # aa is een nested lijst met de output waarden van alle instances
-        return self.next(aa, ys)
+
+        yhats, ls, gs = self.next(aa, ys)
+
+        if alpha is not None:
+            # Update weights and biases
+            print("z")
+
+        return yhats, ls, gs
 
     def __repr__(self):
         """Return a string representation of the layer."""
@@ -220,16 +229,17 @@ class ActivationLayer(Layer):
         super().__init__(outputs, name=name, next=next)
         self.activation = activation
 
-    def __call__(self, aa, ys=None, alpha=None):
+    def __call__(self, xs, ys=None, alpha=None):
         hh = []   # Uitvoerwaarden voor alle pre activatie waarden berekend in de vorige laag
-        for a in aa:
+        for x in xs:
             h = []   # Uitvoerwaarde voor één pre activatie waarde
             for o in range(self.outputs):
                 # Bereken voor elk neuron o uit de lijst invoerwaarden x de uitvoerwaarde
-                post_activation = self.activation(a[o])
+                post_activation = self.activation(x[o])
                 h.append(post_activation)
             hh.append(h)
-        return self.next(hh, ys)
+        yhats, ls, gs = self.next(xs, ys)
+        return yhats, ls, gs
 
     def __repr__(self):
         text = f'ActivationLayer(inputs={self.inputs}, outputs={self.outputs}, name={repr(self.name)})'
@@ -269,128 +279,6 @@ class LossLayer(Layer):
         return yhats, ls, gs
     def __add__(self, next):
         raise NotImplementedError('Cannot add a layer after a loss layer')
-
-
-
-
-# class InputLayer(Layer):
-#
-#     def __repr__(self):
-#         text = f'InputLayer(outputs={self.outputs}, name={repr(self.name)})'
-#         if self.next is not None:
-#             text += ' + ' + repr(self.next)
-#         return text
-#
-#     def __call__(self, xs, ys=None):
-#         return self.next(xs, ys)
-#
-#     def predict(self, xs):
-#         _, yhats= self(xs)
-#         return yhats
-#
-#     def evaluate(self, xs, ys):
-#         ls = self(xs, ys)
-#         lmean = sum(ls) / len(ls)
-#         return lmean
-#
-# class HiddenLayer(Layer):
-#
-#     def __repr__(self):
-#         text = f'HiddenLayer(inputs={self.inputs}, outputs={self.outputs}, name={repr(self.name)})'
-#         if self.next is not None:
-#             text += ' + ' + repr(self.next)
-#         return text
-#
-#
-# class DenseLayer(Layer):
-#     def __init__(self, outputs, *, name=None, next=None):
-#         super().__init__(outputs, name=name, next=next)
-#         # Set biases, one bias for every neuron (equal to the amount of outputs)
-#         self.bias = [0 for _ in range(self.outputs)]
-#
-#         # Initialise weights (filled later in set_inputs method)
-#         self.weights = None
-#
-#     def __repr__(self):
-#         text = f'DenseLayer(outputs={self.outputs}, name={repr(self.name)})'
-#         if self.next is not None:
-#             text += ' + ' + repr(self.next)
-#         return text
-#
-#     def set_inputs(self, inputs):
-#         self.inputs = inputs
-#         limit = math.sqrt(6 / (self.inputs + self.outputs))
-#         if not self.weights:
-#             self.weights = [[random.uniform(-limit, limit) for _ in range(self.inputs)] for _ in range(self.outputs)]
-#
-#
-#     def __call__(self, hh, ys=None, alpha=None):
-#         # yhats is the output of the previous layer, because the loss layer is always last
-#         yhats = hh
-#         # ls, the loss, which will be a list of losses for all outputs in yhats, starts at None
-#         ls = None
-#         # gls, will be list of gradient vectors, one for each instance, with one value for each output of the prev layer
-#         # starts None
-#         gls = None
-#         if ys:
-#             ls = []
-#             # For all instances calculate loss:
-#             for yhat, y in zip(yhats, ys):
-#                 # Take sum of the loss of all outputs(number of outputs previous layer=inputs this layer)
-#                 ln = sum(self.loss(yhat[o], y[o]) for o in range(self.inputs))
-#                 ls.append(ln)
-#
-#         return yhats, ls
-#
-#
-#
-# class ActivationLayer(Layer):
-#     def __init__(self, outputs, *, activation=sign, name=None, next=None):
-#         super().__init__(outputs, name=name, next=next)
-#         self.activation = activation
-#
-#     def __repr__(self):
-#         text = f'DenseLayer(inputs={self.inputs}, outputs={self.outputs}, name={repr(self.name)})'
-#         if self.next is not None:
-#             text += ' + ' + repr(self.next)
-#         return text
-#
-#     def __call__(self, xs, ys=None, loss_func=mean_squared_error):
-#         hh = []  # Uitvoerwaarden voor alle instances xs
-#         for x in xs:
-#             h = []  # Uitvoerwaarde voor één instance x
-#             for o in range(self.outputs):
-#                 # Bereken voor elk neuron o met de lijst invoerwaarden x de uitvoerwaarde
-#                 poa = self.activation(x[o])
-#                 h.append(poa)
-#             hh.append(h)
-#         yhats, ls = self.next(hh)
-#
-#         return yhats, ls
-#
-#
-# class LossLayer(Layer):
-#     def __init__(self, loss=mean_squared_error, name=None):
-#         super().__init__(outputs=None, name=name)
-#         self.loss = loss
-#     def __call__(self, xs, ys=None, loss_func=mean_squared_error):
-#         yhats = xs
-#         # Loss calculation
-#         ls = None
-#         if ys is not None:
-#             ls = []
-#             for yhat, y in zip(yhats, ys):
-#                 # Take sum of the loss of all outputs(number of outputs previous layer=inputs this layer)
-#                 ln = sum(loss_func(yhat[o], y[o]) for o in range(self.inputs))
-#                 ls.append(ln)
-#
-#         return yhats, ls
-#     def __repr__(self):
-#         text = f'LossLayer(inputs={self.inputs}, outputs={self.outputs}, name={repr(self.name)})'
-#         if self.next is not None:
-#             text += ' + ' + repr(self.next)
-#         return text
-
 
 # MAIN
 def main(args):
