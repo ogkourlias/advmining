@@ -161,16 +161,16 @@ class Neuron:
                 derivative(self.loss)(yhat, y)
             )  # Calculate the loss derivative.
             self.bias -= (
-                alpha
-                * derivative(self.loss)(yhat, y)
-                * derivative(self.activation)(pre)
-            )  # Update the bias.
-            for i in range(self.dim):  # Update the weights.
-                self.weights[i] -= (
                     alpha
                     * derivative(self.loss)(yhat, y)
                     * derivative(self.activation)(pre)
-                    * xvals[i]
+            )  # Update the bias.
+            for i in range(self.dim):  # Update the weights.
+                self.weights[i] -= (
+                        alpha
+                        * derivative(self.loss)(yhat, y)
+                        * derivative(self.activation)(pre)
+                        * xvals[i]
                 )
 
     def fit(self, xs, ys, *, alpha=0.03, epochs=4000):
@@ -178,7 +178,7 @@ class Neuron:
         for epoch in range(epochs):  # For each epoch.
             self.partial_fit(xs, ys)  # Perform a partial fit.
             if (
-                np.average(self.loss_derivs) <= 0.03
+                    np.average(self.loss_derivs) <= 0.03
             ):  # If the average loss derivative is less than 0.03.
                 self.loss_derivs = []  # Reset the loss derivatives.
                 break
@@ -208,7 +208,7 @@ class Layer:
     def __getitem__(self, index):
         """Return the layer at the given index. (Dunder method)"""
         if (
-            index == 0 or index == self.name
+                index == 0 or index == self.name
         ):  # If the index is 0 or the name of the layer.
             return self  # Return the layer.
         if isinstance(index, int):  # If the index is an integer.
@@ -279,14 +279,50 @@ class InputLayer(Layer):
         lmean = sum(ls) / len(ls)
         return lmean
 
-    def partial_fit(self, xs, ys, *, alpha=0.03):
+    def partial_fit(self, xs, ys, *, alpha=0.03, batch_size=0):
         """Perform a partial fit on the model."""
-        self(xs, ys, alpha)
+        if batch_size == 0:
+            batch_size = len(xs)
 
-    def fit(self, xs, ys, *, alpha=0.03, epochs=400):
+        ls = []
+
+        for i in range(0, len(xs), batch_size):
+            _, loss, _ = self(xs[i:i+batch_size], ys[i:i+batch_size], alpha)
+            ls.extend(loss)
+
+        lmean = sum(ls) / len(ls)
+        return lmean
+
+    def fit(self, xs, ys, *, alpha=0.03, epochs=400, validation_data=None, batch_size=0):
         """Perform a fit on the model."""
+        history = {'loss': []}
+
+        if batch_size != 0:
+            # Create a list of indices and shuffle it
+            indices = list(range(len(xs)))
+            random.shuffle(indices)
+
+            # Create new lists using the shuffled indices
+            xs = [xs[i] for i in indices]
+            ys = [ys[i] for i in indices]
+
+
+        if validation_data:
+            history['val_loss'] = []
+
         for epoch in range(epochs):
-            self.partial_fit(xs, ys, alpha=alpha)
+            indices = list(range(len(xs)))
+            random.shuffle(indices)
+
+            # Create new lists using the shuffled indices
+            xs_shuffled = [xs[i] for i in indices]
+            ys_shuffled = [ys[i] for i in indices]
+
+            history['loss'].append(self.partial_fit(xs_shuffled, ys_shuffled, alpha=alpha, batch_size=batch_size))
+
+            if validation_data:
+                history['val_loss'].append(self.evaluate(*validation_data))
+        return history
 
 
 class DenseLayer(Layer):
@@ -361,7 +397,7 @@ class ActivationLayer(Layer):
     """A layer that applies an activation function to its inputs."""
 
     def __init__(
-        self, outputs, *, name=None, next=None, activation=linear
+            self, outputs, *, name=None, next=None, activation=linear
     ):  # Add activation function as parameter.
         super().__init__(outputs, name=name, next=next)  # Initialise the layer.
         self.activation = activation  # Set the activation function.
@@ -423,7 +459,7 @@ class LossLayer(Layer):
         if ys is not None:  # Als er een lijst met gewenste uitvoerwaarden is meegegeven
             ls = []  # Maak een lege lijst voor de loss
             for yhat, y in zip(
-                yhats, ys
+                    yhats, ys
             ):  # Voor elke uitvoerwaarde en de bijbehorende gewenste uitvoerwaarde
                 summed_loss = sum(self.loss(yhat[i], y[i]) for i in range(self.inputs))
                 ls.append(summed_loss)  # Voeg de loss toe aan de lijst met lossen
@@ -431,7 +467,7 @@ class LossLayer(Layer):
         if alpha is not None:  # Als er een alpha is meegegeven, dan is er training
             gs = []  # Maak een lege lijst voor de gradienten
             for yhat, y in zip(
-                yhats, ys
+                    yhats, ys
             ):  # Voor elke uitvoerwaarde en de bijbehorende gewenste uitvoerwaarde
                 # Voeg de gradient toe aan de lijst met gradienten
                 gs.append(
@@ -448,7 +484,7 @@ class SoftmaxLayer(Layer):
     """A layer that applies an activation function to its inputs."""
 
     def __init__(
-        self, outputs, *, name=None, next=None
+            self, outputs, *, name=None, next=None
     ):  # Add activation function as parameter.
         super().__init__(outputs, name=name, next=next)  # Initialise the layer.
 
@@ -457,10 +493,10 @@ class SoftmaxLayer(Layer):
         probs = (
             []
         )  # Uitvoerwaarden voor alle pre activatie waarden berekend in de vorige laag
-        grads = None # lijst met de gradienten van de pre activatie waarden
-        for x in xs: # Voor elke invoer
+        grads = None  # lijst met de gradienten van de pre activatie waarden
+        for x in xs:  # Voor elke invoer
             probs.append(
-                softmax(x) # Bereken de softmax van de invoer
+                softmax(x)  # Bereken de softmax van de invoer
             )  # Voeg de uitvoerwaarde toe aan de lijst met uitvoerwaarden
 
         yhats, ls, gs = self.next(probs, ys, alpha)  # Roep de volgende laag aan
@@ -468,12 +504,12 @@ class SoftmaxLayer(Layer):
         if alpha is not None:  # Als alpha is meegegeven, dan is er training
             grads = []  # lijst met de gradienten van de pre activatie waarden
             for yhat, g in zip(
-                yhats, gs
+                    yhats, gs
             ):  # Voor elke invoer en de bijbehorende gradient
                 gg = [
                     sum(
                         g[o] * yhat[o] * ((i == o) - yhat[i])
-                        for o in range(self.outputs) # Voor elke uitvoer
+                        for o in range(self.outputs)  # Voor elke uitvoer
                     )
                     for i in range(self.inputs)
                 ]  # Bereken de gradient
