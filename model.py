@@ -11,9 +11,11 @@ __status__ = "WIP"
 __version__ = "0.1"
 
 import random
+
 # IMPORTS
 import sys
 import numpy as np
+import math
 from copy import deepcopy
 from collections import Counter
 from pandas import DataFrame
@@ -31,9 +33,66 @@ def sign(a):
     return np.sign(a)
 
 
+def sigmoid(a):
+    """Sigmoid activation function."""
+    return 1 / (1 + pseudo_log(-a))
+
+
+def softplus(a):
+    """Softplus activation function."""
+    return pseudo_log(1 + pseudo_log(a))
+
+
+def relu(a):
+    """ReLU activation function."""
+    return max(a, 0)
+
+
+def swish(a):
+    """Swish activation function."""
+    return a * sigmoid(a)
+
+
+def softsign(a):
+    """Softsign activation function."""
+    return a / (1 + abs(a))
+
+
 def tanh(a):
     """Hyperbolic tangent activation function."""
     return np.tanh(a)
+
+
+def softmax(pre):
+    """Softmax activation function."""
+    # Find max in list.
+    max_val = max(pre)
+
+    # Calc normalised values.
+    norm_pre = [val - max_val for val in pre]
+
+    # Calc sum of normalised values.
+    denom = sum(np.e ** val for val in norm_pre)
+
+    # Calc softmax values.
+    return [np.e ** val / denom for val in norm_pre]
+
+
+def pseudo_log(a, ep=0.0001):
+    """Pseudo-ln activation function."""
+    if a < ep:
+        return np.log(ep) + (a - ep) / ep
+    return np.log(a)
+
+
+def categorical_crossentropy(yhat, y, ep=0.0001):
+    """Categorical cross-entropy loss function."""
+    return -y * pseudo_log(yhat, ep)
+
+
+def binary_crossentropy(yhat, y, ep=0.0001):
+    """Binary cross-entropy loss function."""
+    return -y * pseudo_log(yhat, ep) - (1 - y) * pseudo_log(1 - yhat, ep)
 
 
 # Loss functions
@@ -54,8 +113,8 @@ def derivative(function, delta=0.001):
     def wrapper_derivative(x, *args):
         """Return the derivative of a function."""
         return (function(x + delta, *args) - function(x - delta, *args)) / (2 * delta)
-        wrapper_derivative.__name__ = function.__name__ + '’'
-        wrapper_derivative.__qualname__ = function.__qualname__ + '’'
+        wrapper_derivative.__name__ = function.__name__ + "’"
+        wrapper_derivative.__qualname__ = function.__qualname__ + "’"
 
     return wrapper_derivative
 
@@ -75,46 +134,66 @@ class Neuron:
 
     def __repr__(self):
         """Return a string representation of the neuron."""
-        text = f'Neuron(dim={self.dim}, activation={self.activation.__name__}, loss={self.loss.__name__})'
+        text = f"Neuron(dim={self.dim}, activation={self.activation.__name__}, loss={self.loss.__name__})"
         return text
 
     def predict(self, xs):
         """Return the predicted values for a given set of inputs."""
         predicted = []
         for xvals in xs:  # For each input in instance.
-            pre = self.bias + sum(self.weights[i] * xvals[i] for i in range(self.dim))  # Calculate the pre-activation.
+            pre = self.bias + sum(
+                self.weights[i] * xvals[i] for i in range(self.dim)
+            )  # Calculate the pre-activation.
             post = self.activation(pre)  # Calculate the post-activation.
-            predicted.append(post)  # Add the post-activation to the list of predictions.
+            predicted.append(
+                post
+            )  # Add the post-activation to the list of predictions.
         return predicted
 
     def partial_fit(self, xs, ys, *, alpha=0.03):
         """Perform a partial fit on the neuron."""
         for xvals, y in zip(xs, ys):  # For each input in instance.
-            pre = self.bias + sum(self.weights[i] * xvals[i] for i in range(self.dim))  # Calculate the pre-activation.
+            pre = self.bias + sum(
+                self.weights[i] * xvals[i] for i in range(self.dim)
+            )  # Calculate the pre-activation.
             yhat = self.activation(pre)  # Calculate the post-activation.
-            self.loss_derivs.append(derivative(self.loss)(yhat, y))  # Calculate the loss derivative.
-            self.bias -= alpha * derivative(self.loss)(yhat, y) * derivative(self.activation)(pre)  # Update the bias.
+            self.loss_derivs.append(
+                derivative(self.loss)(yhat, y)
+            )  # Calculate the loss derivative.
+            self.bias -= (
+                alpha
+                * derivative(self.loss)(yhat, y)
+                * derivative(self.activation)(pre)
+            )  # Update the bias.
             for i in range(self.dim):  # Update the weights.
-                self.weights[i] -= alpha * derivative(self.loss)(yhat, y) * derivative(self.activation)(pre) * xvals[i]
+                self.weights[i] -= (
+                    alpha
+                    * derivative(self.loss)(yhat, y)
+                    * derivative(self.activation)(pre)
+                    * xvals[i]
+                )
 
     def fit(self, xs, ys, *, alpha=0.03, epochs=4000):
         """Perform a fit on the neuron."""
         for epoch in range(epochs):  # For each epoch.
             self.partial_fit(xs, ys)  # Perform a partial fit.
-            if np.average(self.loss_derivs) <= 0.03:  # If the average loss derivative is less than 0.03.
+            if (
+                np.average(self.loss_derivs) <= 0.03
+            ):  # If the average loss derivative is less than 0.03.
                 self.loss_derivs = []  # Reset the loss derivatives.
                 break
 
 
 class Layer:
     """A layer of neurons."""
+
     classcounter = Counter()  # Counter for the number of layers of each type.
 
     def __init__(self, outputs, *, name=None, next=None):
         """Initialise a layer with a given amount of outputs and a name."""
         Layer.classcounter[type(self)] += 1  # Increment the counter for the layer type.
         if name is None:  # If no name is given.
-            name = f'{type(self).__name__}_{Layer.classcounter[type(self)]}'  # Create a name for the layer.
+            name = f"{type(self).__name__}_{Layer.classcounter[type(self)]}"  # Create a name for the layer.
         self.inputs = 0  # The number of inputs is initially 0.
         self.outputs = outputs  # The number of outputs is the given number of outputs.
         self.name = name  # The name of the layer is the given name.
@@ -128,27 +207,31 @@ class Layer:
 
     def __getitem__(self, index):
         """Return the layer at the given index. (Dunder method)"""
-        if index == 0 or index == self.name:  # If the index is 0 or the name of the layer.
+        if (
+            index == 0 or index == self.name
+        ):  # If the index is 0 or the name of the layer.
             return self  # Return the layer.
         if isinstance(index, int):  # If the index is an integer.
             if self.next is None:  # If there is no next layer.
-                raise IndexError('Layer index out of range')  # Raise an error.
+                raise IndexError("Layer index out of range")  # Raise an error.
             return self.next[index - 1]  # Return the layer at the given index.
         if isinstance(index, str):  # If the index is a string.
             if self.next is None:  # If there is no next layer.
                 raise KeyError(index)  # Raise an error.
             return self.next[index]  # Return the layer with the given name.
-        raise TypeError(f'Layer indices must be integers or strings, not {type(index).__name__}')  # Raise an error.
+        raise TypeError(
+            f"Layer indices must be integers or strings, not {type(index).__name__}"
+        )  # Raise an error.
 
     def __call__(self, xs):
         """Return the output of the layer. (Dunder method)"""
-        raise NotImplementedError('Abstract __call__ method')
+        raise NotImplementedError("Abstract __call__ method")
 
     def __repr__(self):
         """Return a string representation of the layer."""
-        text = f'Layer(inputs={self.inputs}, outputs={self.outputs}, name={repr(self.name)})'
+        text = f"Layer(inputs={self.inputs}, outputs={self.outputs}, name={repr(self.name)})"
         if self.next is not None:  # If there is a next layer.
-            text += ' + ' + repr(self.next)
+            text += " + " + repr(self.next)
         return text
 
     def add(self, next):
@@ -173,15 +256,15 @@ class InputLayer(Layer):
 
     def __repr__(self):
         """Return a string representation of the layer."""
-        text = f'InputLayer(outputs={self.outputs}, name={repr(self.name)})'
+        text = f"InputLayer(outputs={self.outputs}, name={repr(self.name)})"
         if self.next is not None:
             # If there is a next layer.
-            text += ' + ' + repr(self.next)
+            text += " + " + repr(self.next)
         return text
 
     def set_inputs(self, inputs):
         """Set the number of inputs of the layer."""
-        raise AttributeError('Input layer cannot have inputs.')
+        raise AttributeError("Input layer cannot have inputs.")
 
     def predict(self, xs):
         """Predict for yhats."""
@@ -225,9 +308,12 @@ class DenseLayer(Layer):
             a = []  # Create an empty list for outputs.
             for o in range(self.outputs):  # For each output.
                 # Calculate the pre-activation.
-                pre_activation = self.bias[o] + \
-                                 sum(self.weights[o][i] * x[i] for i in range(self.inputs))
-                a.append(pre_activation)  # Append the pre-activation to the list of outputs.
+                pre_activation = self.bias[o] + sum(
+                    self.weights[o][i] * x[i] for i in range(self.inputs)
+                )
+                a.append(
+                    pre_activation
+                )  # Append the pre-activation to the list of outputs.
             aa.append(a)  # Append the list of instance outputs to the list of outputs.
 
         yhats, ls, gs = self.next(aa, ys, alpha)  # Call the next layer.
@@ -235,41 +321,56 @@ class DenseLayer(Layer):
         if alpha:  # If alpha is given the training is happening.
             gradients = []  # Create an empty list for gradients.
             for x, g in zip(xs, gs):  # For each instance and its gradient.
-                gradients.append([sum(self.weights[o][i] * g[o] for o in range(self.outputs))
-                                  for i in range(self.inputs)])  # Calculate the gradient.
+                gradients.append(
+                    [
+                        sum(self.weights[o][i] * g[o] for o in range(self.outputs))
+                        for i in range(self.inputs)
+                    ]
+                )  # Calculate the gradient.
                 for o in range(self.outputs):  # For each output.
                     self.bias[o] -= alpha / len(xs) * g[o]  # Update the bias.
-                    self.weights[o] = [self.weights[o][i] - alpha / len(xs) * g[o] * x[i]
-                                       for i in range(self.inputs)]  # Update the weights.
+                    self.weights[o] = [
+                        self.weights[o][i] - alpha / len(xs) * g[o] * x[i]
+                        for i in range(self.inputs)
+                    ]  # Update the weights.
 
         return yhats, ls, gradients
 
     def __repr__(self):
         """Return a string representation of the layer."""
-        text = f'DenseLayer(inputs={self.inputs}, outputs={self.outputs}, name={repr(self.name)})'  # Create a string.
+        text = f"DenseLayer(inputs={self.inputs}, outputs={self.outputs}, name={repr(self.name)})"  # Create a string.
         if self.next is not None:  # If there is a next layer.
-            text += ' + ' + repr(self.next)  # Add the next layer to the string.
+            text += " + " + repr(self.next)  # Add the next layer to the string.
         return text
 
     def set_inputs(self, inputs):
         """Set the number of inputs for the layer and initialise the weights.
         Weights are random."""
         self.inputs = inputs  # Set the number of inputs.
-        limit = np.sqrt(6 / (self.inputs + self.outputs))  # Calculate the limit for the random weights.
+        limit = np.sqrt(
+            6 / (self.inputs + self.outputs)
+        )  # Calculate the limit for the random weights.
         if not self.weights:
-            self.weights = [[random.uniform(-limit, limit) for _ in range(self.inputs)] for _ in range(self.outputs)]
+            self.weights = [
+                [random.uniform(-limit, limit) for _ in range(self.inputs)]
+                for _ in range(self.outputs)
+            ]
 
 
 class ActivationLayer(Layer):
     """A layer that applies an activation function to its inputs."""
 
-    def __init__(self, outputs, *, name=None, next=None, activation=linear):  # Add activation function as parameter.
+    def __init__(
+        self, outputs, *, name=None, next=None, activation=linear
+    ):  # Add activation function as parameter.
         super().__init__(outputs, name=name, next=next)  # Initialise the layer.
         self.activation = activation  # Set the activation function.
 
     def __call__(self, xs, ys=None, alpha=None):
         """Call the layer. (Dunder method)"""
-        hh = []  # Uitvoerwaarden voor alle pre activatie waarden berekend in de vorige laag
+        hh = (
+            []
+        )  # Uitvoerwaarden voor alle pre activatie waarden berekend in de vorige laag
         grads = None
         for x in xs:
             h = []  # Uitvoerwaarde voor één pre activatie waarde
@@ -285,16 +386,18 @@ class ActivationLayer(Layer):
             grads = []  # lijst met de gradienten van de pre activatie waarden
             # calculate gradients
             for x, g in zip(xs, gs):  # Voor elke invoer en de bijbehorende gradient
-                gg = [derivative(self.activation)(x[i]) * g[i] for i in range(self.inputs)]
+                gg = [
+                    derivative(self.activation)(x[i]) * g[i] for i in range(self.inputs)
+                ]
                 grads.append(gg)  # Voeg de gradient toe aan de lijst met gradienten
 
         return yhats, ls, grads
 
     def __repr__(self):
         """Return a string representation of the layer."""
-        text = f'ActivationLayer(inputs={self.inputs}, outputs={self.outputs}, name={repr(self.name)})'
+        text = f"ActivationLayer(inputs={self.inputs}, outputs={self.outputs}, name={repr(self.name)})"
         if self.next is not None:
-            text += ' + ' + repr(self.next)
+            text += " + " + repr(self.next)
         return text
 
 
@@ -307,9 +410,9 @@ class LossLayer(Layer):
 
     def __repr__(self):
         """Return a string representation of the layer."""
-        text = f'LossLayer(inputs={self.inputs}, outputs={self.outputs}, name={repr(self.name)})'
+        text = f"LossLayer(inputs={self.inputs}, outputs={self.outputs}, name={repr(self.name)})"
         if self.next is not None:
-            text += ' + ' + repr(self.next)
+            text += " + " + repr(self.next)
         return text
 
     def __call__(self, xs, ys=None, alpha=None):
@@ -319,28 +422,76 @@ class LossLayer(Layer):
         gs = None  # De gradient is nog niet berekend
         if ys is not None:  # Als er een lijst met gewenste uitvoerwaarden is meegegeven
             ls = []  # Maak een lege lijst voor de loss
-            for yhat, y in zip(yhats, ys):  # Voor elke uitvoerwaarde en de bijbehorende gewenste uitvoerwaarde
+            for yhat, y in zip(
+                yhats, ys
+            ):  # Voor elke uitvoerwaarde en de bijbehorende gewenste uitvoerwaarde
                 summed_loss = sum(self.loss(yhat[i], y[i]) for i in range(self.inputs))
                 ls.append(summed_loss)  # Voeg de loss toe aan de lijst met lossen
 
         if alpha is not None:  # Als er een alpha is meegegeven, dan is er training
             gs = []  # Maak een lege lijst voor de gradienten
-            for yhat, y in zip(yhats, ys):  # Voor elke uitvoerwaarde en de bijbehorende gewenste uitvoerwaarde
+            for yhat, y in zip(
+                yhats, ys
+            ):  # Voor elke uitvoerwaarde en de bijbehorende gewenste uitvoerwaarde
                 # Voeg de gradient toe aan de lijst met gradienten
-                gs.append([derivative(self.loss)(yhat[i], y[i]) for i in range(self.inputs)])
+                gs.append(
+                    [derivative(self.loss)(yhat[i], y[i]) for i in range(self.inputs)]
+                )
         return yhats, ls, gs
 
     def __add__(self, next):
         """Add a layer to the loss layer."""
-        raise NotImplementedError('Cannot add a layer after a loss layer')
+        raise NotImplementedError("Cannot add a layer after a loss layer")
 
+
+class SoftmaxLayer(Layer):
+    """A layer that applies an activation function to its inputs."""
+
+    def __init__(
+        self, outputs, *, name=None, next=None
+    ):  # Add activation function as parameter.
+        super().__init__(outputs, name=name, next=next)  # Initialise the layer.
+
+    def __call__(self, xs, ys=None, alpha=None):
+        """Call the layer. (Dunder method)"""
+        probs = (
+            []
+        )  # Uitvoerwaarden voor alle pre activatie waarden berekend in de vorige laag
+        grads = None # lijst met de gradienten van de pre activatie waarden
+        for x in xs: # Voor elke invoer
+            probs.append(
+                softmax(x) # Bereken de softmax van de invoer
+            )  # Voeg de uitvoerwaarde toe aan de lijst met uitvoerwaarden
+
+        yhats, ls, gs = self.next(probs, ys, alpha)  # Roep de volgende laag aan
+
+        if alpha is not None:  # Als alpha is meegegeven, dan is er training
+            grads = []  # lijst met de gradienten van de pre activatie waarden
+            for yhat, g in zip(
+                yhats, gs
+            ):  # Voor elke invoer en de bijbehorende gradient
+                gg = [
+                    sum(
+                        g[o] * yhat[o] * ((i == o) - yhat[i])
+                        for o in range(self.outputs) # Voor elke uitvoer
+                    )
+                    for i in range(self.inputs)
+                ]  # Bereken de gradient
+                grads.append(gg)  # Voeg de gradient toe aan de lijst met gradienten
+
+        return yhats, ls, grads
+
+    def __repr__(self):
+        """Return a string representation of the layer."""
+        text = f"SoftmaxLayer(name={repr(self.name)})"
+        return text
 
 
 def main(args):
-    """ Main function """
+    """Main function"""
 
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main(sys.argv))
