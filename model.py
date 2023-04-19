@@ -15,11 +15,8 @@ import random
 # IMPORTS
 import sys
 import numpy as np
-import math
 from copy import deepcopy
 from collections import Counter
-from pandas import DataFrame
-import data
 
 
 # Activation functions
@@ -101,6 +98,11 @@ def mean_squared_error(yhat, y):
     return np.square(yhat - y)
 
 
+def hinge(yhat, y):
+    """Hinge loss function."""
+    return max(1 - yhat * y, 0)
+
+
 def mean_absolute_error(yhat, y):
     """Mean absolute error loss function."""
     return yhat - y
@@ -119,7 +121,97 @@ def derivative(function, delta=0.001):
     return wrapper_derivative
 
 
+
+
 # CLASSES
+
+class Perceptron():
+    def __init__(self, dim):
+        self.dim = dim
+        self.bias = 0
+        self.weights = [0, 0]
+
+    def __repr__(self):
+        text = f'Perceptron(dim={self.dim})'
+        return text
+
+    def predict(self, xs):
+        final_list = []
+        for x in xs:
+            summed = 0
+            for point in range(self.dim):
+                summed += x[point] * self.weights[point]
+            final_list.append(np.sign(self.bias + summed))
+        return final_list
+
+    def partial_fit(self, xs, ys):
+        for x, y in zip(xs, ys):
+            summed = 0
+            for point in range(self.dim):
+                summed += x[point] * self.weights[point]
+                self.weights[point] -= (np.sign(self.bias + summed) - y) * x[point]
+            self.bias -= (np.sign(self.bias + summed) - y)
+            # Update hier het perceptron met één instance {x, y}
+
+    def fit(self, xs, ys, *, epochs=0):
+        if epochs != 0:
+            for epoch in range(epochs):
+                old_bias = self.bias
+                old_wght = self.weights
+                self.partial_fit(xs, ys)
+                if old_bias == self.bias and old_wght == self.weights:
+                    break
+        else:
+            go = 1
+            while go == 1:
+                old_bias = self.bias
+                old_wght = self.weights
+                self.partial_fit(xs, ys)
+                if old_bias == self.bias and old_wght == self.weights:
+                    go = 0
+
+
+class LinearRegression():
+    def __init__(self, dim):
+        self.dim = dim
+        self.bias = 0
+        self.weights = [0, 0]
+
+    def __repr__(self):
+        text = f'Perceptron(dim={self.dim})'
+        return text
+
+    def predict(self, xs):
+        final_list = []
+        for x in xs:
+            summed = 0
+            for point in range(self.dim):
+                summed += x[point] * self.weights[point]
+            final_list.append(self.bias + summed)
+        return final_list
+
+    def partial_fit(self, xs, ys, alpha=0.01):
+        for x, y in zip(xs, ys):
+            y_roof = 0
+            for dim in range(self.dim):
+                y_roof += self.bias + x[dim] * self.weights[dim]
+                self.weights[dim] -= alpha * (y_roof - y) * x[dim]
+            print(self.bias)
+            self.bias -= alpha * (y_roof - y)
+            # Update hier het perceptron met één instance {x, y}
+
+    def fit(self, xs, ys, *, epochs=1000, alpha=0.01):
+        if epochs != 0:
+            for epoch in range(epochs):
+                old_bias = self.bias
+                old_wght = self.weights
+                self.partial_fit(xs, ys)
+                wgth_diff = []
+                for i, j in zip(old_wght, self.weights):
+                    wgth_diff.append(min(i, j) / max(i, j))
+                if 0.025 * old_bias <= abs(old_bias - self.bias) and max(wgth_diff) <= 1 - alpha / 2:
+                    break
+
 class Neuron:
     """A neuron with a given amount of inputs and a given activation function."""
 
@@ -182,6 +274,7 @@ class Neuron:
             ):  # If the average loss derivative is less than 0.03.
                 self.loss_derivs = []  # Reset the loss derivatives.
                 break
+
 
 
 class Layer:
@@ -287,15 +380,17 @@ class InputLayer(Layer):
         ls = []
 
         for i in range(0, len(xs), batch_size):
-            _, loss, _ = self(xs[i:i+batch_size], ys[i:i+batch_size], alpha)
+            _, loss, _ = self(xs[i: i + batch_size], ys[i: i + batch_size], alpha)
             ls.extend(loss)
 
         lmean = sum(ls) / len(ls)
         return lmean
 
-    def fit(self, xs, ys, *, alpha=0.03, epochs=400, validation_data=None, batch_size=0):
+    def fit(
+            self, xs, ys, *, alpha=0.03, epochs=400, validation_data=None, batch_size=0
+    ):
         """Perform a fit on the model."""
-        history = {'loss': []}
+        history = {"loss": []}
 
         if batch_size != 0:
             # Create a list of indices and shuffle it
@@ -306,9 +401,8 @@ class InputLayer(Layer):
             xs = [xs[i] for i in indices]
             ys = [ys[i] for i in indices]
 
-
         if validation_data:
-            history['val_loss'] = []
+            history["val_loss"] = []
 
         for epoch in range(epochs):
             indices = list(range(len(xs)))
@@ -318,10 +412,14 @@ class InputLayer(Layer):
             xs_shuffled = [xs[i] for i in indices]
             ys_shuffled = [ys[i] for i in indices]
 
-            history['loss'].append(self.partial_fit(xs_shuffled, ys_shuffled, alpha=alpha, batch_size=batch_size))
+            history["loss"].append(
+                self.partial_fit(
+                    xs_shuffled, ys_shuffled, alpha=alpha, batch_size=batch_size
+                )
+            )
 
             if validation_data:
-                history['val_loss'].append(self.evaluate(*validation_data))
+                history["val_loss"].append(self.evaluate(*validation_data))
         return history
 
 
