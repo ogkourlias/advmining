@@ -7,8 +7,8 @@ To be used with the corresponding assignments.
 
 # METADATA VARIABLES
 __author__ = "Orfeas Gkourlias"
-__status__ = "WIP"
-__version__ = "0.1"
+__status__ = "Release Version"
+__version__ = "1.0"
 
 import random
 
@@ -25,29 +25,49 @@ def linear(a):
     return a
 
 
+def hard_tanh(a):
+    """Hard tanh activation function."""
+    if a < -1:
+        return -1
+    elif a > 1:
+        return 1
+    else:
+        return a
+
+
 def sign(a):
     """Sign activation function."""
-    return np.sign(a)
+    if a > 0:
+        return 1
+    if a < 0:
+        return -1
+    return 0
 
 
 def sigmoid(a):
     """Sigmoid activation function."""
-    return 1 / (1 + pseudo_log(-a))
+    try:
+        return np.e ** (a) / (1 + np.e ** (a))
+    except OverflowError:
+        return 1.0
 
 
 def softplus(a):
     """Softplus activation function."""
-    return pseudo_log(1 + pseudo_log(a))
+    try:
+        return np.log(1 + np.e ** a)
+    except OverflowError:
+        return a
 
 
 def relu(a):
     """ReLU activation function."""
-    return max(a, 0)
+    return max(0, a)
 
 
-def swish(a):
+def swish(a, *, beta=1):
     """Swish activation function."""
-    return a * sigmoid(a)
+    return a * sigmoid(a * beta)
 
 
 def softsign(a):
@@ -63,10 +83,8 @@ def tanh(a):
 def softmax(pre):
     """Softmax activation function."""
     # Find max in list.
-    max_val = max(pre)
-
     # Calc normalised values.
-    norm_pre = [val - max_val for val in pre]
+    norm_pre = [val - max(pre) for val in pre]
 
     # Calc sum of normalised values.
     denom = sum(np.e ** val for val in norm_pre)
@@ -105,7 +123,7 @@ def hinge(yhat, y):
 
 def mean_absolute_error(yhat, y):
     """Mean absolute error loss function."""
-    return yhat - y
+    return abs(yhat - y)
 
 
 def derivative(function, delta=0.001):
@@ -115,24 +133,24 @@ def derivative(function, delta=0.001):
     def wrapper_derivative(x, *args):
         """Return the derivative of a function."""
         return (function(x + delta, *args) - function(x - delta, *args)) / (2 * delta)
-        wrapper_derivative.__name__ = function.__name__ + "’"
-        wrapper_derivative.__qualname__ = function.__qualname__ + "’"
+
+    wrapper_derivative.__name__ = function.__name__ + "’"
+    wrapper_derivative.__qualname__ = function.__qualname__ + "’"
 
     return wrapper_derivative
 
 
-
-
 # CLASSES
 
-class Perceptron():
+
+class Perceptron:
     def __init__(self, dim):
         self.dim = dim
         self.bias = 0
         self.weights = [0, 0]
 
     def __repr__(self):
-        text = f'Perceptron(dim={self.dim})'
+        text = f"Perceptron(dim={self.dim})"
         return text
 
     def predict(self, xs):
@@ -150,7 +168,7 @@ class Perceptron():
             for point in range(self.dim):
                 summed += x[point] * self.weights[point]
                 self.weights[point] -= (np.sign(self.bias + summed) - y) * x[point]
-            self.bias -= (np.sign(self.bias + summed) - y)
+            self.bias -= np.sign(self.bias + summed) - y
             # Update hier het perceptron met één instance {x, y}
 
     def fit(self, xs, ys, *, epochs=0):
@@ -171,14 +189,14 @@ class Perceptron():
                     go = 0
 
 
-class LinearRegression():
+class LinearRegression:
     def __init__(self, dim):
         self.dim = dim
         self.bias = 0
         self.weights = [0, 0]
 
     def __repr__(self):
-        text = f'Perceptron(dim={self.dim})'
+        text = f"Perceptron(dim={self.dim})"
         return text
 
     def predict(self, xs):
@@ -209,8 +227,12 @@ class LinearRegression():
                 wgth_diff = []
                 for i, j in zip(old_wght, self.weights):
                     wgth_diff.append(min(i, j) / max(i, j))
-                if 0.025 * old_bias <= abs(old_bias - self.bias) and max(wgth_diff) <= 1 - alpha / 2:
+                if (
+                    0.025 * old_bias <= abs(old_bias - self.bias)
+                    and max(wgth_diff) <= 1 - alpha / 2
+                ):
                     break
+
 
 class Neuron:
     """A neuron with a given amount of inputs and a given activation function."""
@@ -253,16 +275,16 @@ class Neuron:
                 derivative(self.loss)(yhat, y)
             )  # Calculate the loss derivative.
             self.bias -= (
-                    alpha
-                    * derivative(self.loss)(yhat, y)
-                    * derivative(self.activation)(pre)
+                alpha
+                * derivative(self.loss)(yhat, y)
+                * derivative(self.activation)(pre)
             )  # Update the bias.
             for i in range(self.dim):  # Update the weights.
                 self.weights[i] -= (
-                        alpha
-                        * derivative(self.loss)(yhat, y)
-                        * derivative(self.activation)(pre)
-                        * xvals[i]
+                    alpha
+                    * derivative(self.loss)(yhat, y)
+                    * derivative(self.activation)(pre)
+                    * xvals[i]
                 )
 
     def fit(self, xs, ys, *, alpha=0.03, epochs=4000):
@@ -270,11 +292,10 @@ class Neuron:
         for epoch in range(epochs):  # For each epoch.
             self.partial_fit(xs, ys)  # Perform a partial fit.
             if (
-                    np.average(self.loss_derivs) <= 0.03
+                np.average(self.loss_derivs) <= 0.03
             ):  # If the average loss derivative is less than 0.03.
                 self.loss_derivs = []  # Reset the loss derivatives.
                 break
-
 
 
 class Layer:
@@ -301,7 +322,7 @@ class Layer:
     def __getitem__(self, index):
         """Return the layer at the given index. (Dunder method)"""
         if (
-                index == 0 or index == self.name
+            index == 0 or index == self.name
         ):  # If the index is 0 or the name of the layer.
             return self  # Return the layer.
         if isinstance(index, int):  # If the index is an integer.
@@ -380,14 +401,14 @@ class InputLayer(Layer):
         ls = []
 
         for i in range(0, len(xs), batch_size):
-            _, loss, _ = self(xs[i: i + batch_size], ys[i: i + batch_size], alpha)
+            _, loss, _ = self(xs[i : i + batch_size], ys[i : i + batch_size], alpha)
             ls.extend(loss)
 
         lmean = sum(ls) / len(ls)
         return lmean
 
     def fit(
-            self, xs, ys, *, alpha=0.03, epochs=400, validation_data=None, batch_size=0
+        self, xs, ys, *, alpha=0.03, epochs=400, validation_data=None, batch_size=0
     ):
         """Perform a fit on the model."""
         history = {"loss": []}
@@ -462,13 +483,24 @@ class DenseLayer(Layer):
                     ]
                 )  # Calculate the gradient.
                 for o in range(self.outputs):  # For each output.
-                    self.bias[o] -= alpha / len(xs) * g[o]  # Update the bias.
+                    self.bias[o] = (
+                        self.bias[o] - alpha / len(xs) * g[o]
+                    )  # Update the bias.
                     self.weights[o] = [
                         self.weights[o][i] - alpha / len(xs) * g[o] * x[i]
                         for i in range(self.inputs)
                     ]  # Update the weights.
 
         return yhats, ls, gradients
+
+    def set_inputs(self, inputs: int):
+        self.inputs = inputs
+        limit = np.sqrt(6 / (self.inputs + self.outputs))
+        if not self.weights:
+            self.weights = [
+                [random.uniform(-limit, limit) for _ in range(self.inputs)]
+                for _ in range(self.outputs)
+            ]
 
     def __repr__(self):
         """Return a string representation of the layer."""
@@ -477,25 +509,12 @@ class DenseLayer(Layer):
             text += " + " + repr(self.next)  # Add the next layer to the string.
         return text
 
-    def set_inputs(self, inputs):
-        """Set the number of inputs for the layer and initialise the weights.
-        Weights are random."""
-        self.inputs = inputs  # Set the number of inputs.
-        limit = np.sqrt(
-            6 / (self.inputs + self.outputs)
-        )  # Calculate the limit for the random weights.
-        if not self.weights:
-            self.weights = [
-                [random.uniform(-limit, limit) for _ in range(self.inputs)]
-                for _ in range(self.outputs)
-            ]
-
 
 class ActivationLayer(Layer):
     """A layer that applies an activation function to its inputs."""
 
     def __init__(
-            self, outputs, *, name=None, next=None, activation=linear
+        self, outputs, *, name=None, next=None, activation=linear
     ):  # Add activation function as parameter.
         super().__init__(outputs, name=name, next=next)  # Initialise the layer.
         self.activation = activation  # Set the activation function.
@@ -557,7 +576,7 @@ class LossLayer(Layer):
         if ys is not None:  # Als er een lijst met gewenste uitvoerwaarden is meegegeven
             ls = []  # Maak een lege lijst voor de loss
             for yhat, y in zip(
-                    yhats, ys
+                yhats, ys
             ):  # Voor elke uitvoerwaarde en de bijbehorende gewenste uitvoerwaarde
                 summed_loss = sum(self.loss(yhat[i], y[i]) for i in range(self.inputs))
                 ls.append(summed_loss)  # Voeg de loss toe aan de lijst met lossen
@@ -565,7 +584,7 @@ class LossLayer(Layer):
         if alpha is not None:  # Als er een alpha is meegegeven, dan is er training
             gs = []  # Maak een lege lijst voor de gradienten
             for yhat, y in zip(
-                    yhats, ys
+                yhats, ys
             ):  # Voor elke uitvoerwaarde en de bijbehorende gewenste uitvoerwaarde
                 # Voeg de gradient toe aan de lijst met gradienten
                 gs.append(
@@ -582,7 +601,7 @@ class SoftmaxLayer(Layer):
     """A layer that applies an activation function to its inputs."""
 
     def __init__(
-            self, outputs, *, name=None, next=None
+        self, outputs, *, name=None, next=None
     ):  # Add activation function as parameter.
         super().__init__(outputs, name=name, next=next)  # Initialise the layer.
 
@@ -602,7 +621,7 @@ class SoftmaxLayer(Layer):
         if alpha is not None:  # Als alpha is meegegeven, dan is er training
             grads = []  # lijst met de gradienten van de pre activatie waarden
             for yhat, g in zip(
-                    yhats, gs
+                yhats, gs
             ):  # Voor elke invoer en de bijbehorende gradient
                 gg = [
                     sum(
@@ -618,6 +637,8 @@ class SoftmaxLayer(Layer):
     def __repr__(self):
         """Return a string representation of the layer."""
         text = f"SoftmaxLayer(name={repr(self.name)})"
+        if self.next is not None:
+            text += " + " + repr(self.next)
         return text
 
 
